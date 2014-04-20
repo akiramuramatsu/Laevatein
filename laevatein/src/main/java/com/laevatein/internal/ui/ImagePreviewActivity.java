@@ -34,6 +34,10 @@ import android.view.MenuItem;
  */
 public class ImagePreviewActivity extends ActionBarActivity {
     public static final String EXTRA_ITEM = BundleUtils.buildKey(ImagePreviewActivity.class, "EXTRA_ITEM");
+    public static final String EXTRA_ERROR_SPEC = BundleUtils.buildKey(ImagePreviewActivity.class, "EXTRA_ERROR_SPEC");
+    public static final String EXTRA_SELECTION_SPEC = BundleUtils.buildKey(ImagePreviewActivity.class, "EXTRA_SELECTION_SPEC");
+    public static final String EXTRA_VIEW_SPEC = BundleUtils.buildKey(ImagePreviewActivity.class, "EXTRA_VIEW_SPEC");
+    public static final String EXTRA_CURRENT_COUNT = BundleUtils.buildKey(ImagePreviewActivity.class, "EXTRA_CURRENT_COUNT");
     public static final String EXTRA_CHECK_VIEW_RES = BundleUtils.buildKey(ImagePreviewActivity.class, "EXTRA_CHECK_VIEW_RES");
     public static final String EXTRA_DEFAULT_CHECKED = BundleUtils.buildKey(ImagePreviewActivity.class, "EXTRA_DEFAULT_CHECKED");
     public static final String EXTRA_RESULT_ITEM = BundleUtils.buildKey(ImagePreviewActivity.class, "EXTRA_RESULT_ITEM");
@@ -46,6 +50,7 @@ public class ImagePreviewActivity extends ActionBarActivity {
         setContentView(R.layout.l_activity_preview);
         mStateHolder.onCreate();
         mStateHolder.onRestoreInstanceState(savedInstanceState);
+        PreviewHelper.setUpActivity(this);
         PreviewHelper.setUpActionBar(this);
         PreviewHelper.assign(this, getIntent().<Item>getParcelableExtra(EXTRA_ITEM));
     }
@@ -66,6 +71,7 @@ public class ImagePreviewActivity extends ActionBarActivity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (R.id.home == item.getItemId() || android.R.id.home == item.getItemId()) {
+            PreviewHelper.sendBackResult(this);
             finish();
             return true;
         }

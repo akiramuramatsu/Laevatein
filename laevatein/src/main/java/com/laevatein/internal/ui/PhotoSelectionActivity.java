@@ -48,14 +48,13 @@ import jp.mixi.compatibility.android.provider.MediaStoreCompat;
  */
 public class PhotoSelectionActivity extends ActionBarActivity implements
         AlbumListFragment.OnDirectorySelectListener,
-        ConfirmationDialogFragment.ConfirmationSelectionListener {
+        ConfirmationDialogFragment.ConfirmationSelectionListener,
+        SelectedCountFragment.OnShowSelectedClickListener {
+    public static final String EXTRA_VIEW_SPEC = BundleUtils.buildKey(PhotoSelectionActivity.class, "EXTRA_VIEW_SPEC");
     public static final String EXTRA_RESUME_LIST = BundleUtils.buildKey(PhotoSelectionActivity.class, "EXTRA_RESUME_LIST");
     public static final String EXTRA_SELECTION_SPEC = BundleUtils.buildKey(PhotoSelectionActivity.class, "EXTRA_SELECTION_SPEC");
-    public static final String EXTRA_DIR_VIEW_RES = BundleUtils.buildKey(PhotoSelectionActivity.class, "EXTRA_DIR_VIEW_RES");
-    public static final String EXTRA_ITEM_VIEW_RES = BundleUtils.buildKey(PhotoSelectionActivity.class, "EXTRA_ITEM_VIEW_RES");
     public static final String EXTRA_RESULT_SELECTION = BundleUtils.buildKey(PhotoSelectionActivity.class, "EXTRA_RESULT_SELECTION");
-    public static final String EXTRA_ENABLE_CAPTURE = BundleUtils.buildKey(PhotoSelectionActivity.class, "EXTRA_ENABLE_CAPTURE");
-    public static final String EXTRA_ACTION_VIEW_RES = BundleUtils.buildKey(PhotoSelectionActivity.class, "EXTRA_ACTION_VIEW_RES");
+    public static final String EXTRA_ERROR_SPEC = BundleUtils.buildKey(PhotoSelectionActivity.class, "EXTRA_ERROR_SPEC");
     public static final String STATE_CAPTURE_PHOTO_URI = BundleUtils.buildKey(PhotoSelectionActivity.class, "STATE_CAPTURE_PHOTO_URI");
     public static final int REQUEST_CODE_CAPTURE = 1;
     public static final int REQUEST_CODE_PREVIEW = 2;
@@ -69,6 +68,7 @@ public class PhotoSelectionActivity extends ActionBarActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.l_activity_select_photo);
+        PhotoSelectionViewHelper.setUpActivity(this);
         mMediaStoreCompat = new MediaStoreCompat(this, HandlerUtils.getMainHandler());
         mCapturePhotoUriHolder = savedInstanceState != null ? savedInstanceState.getString(STATE_CAPTURE_PHOTO_URI) : "";
         mCollection.onCreate(savedInstanceState);
@@ -115,6 +115,7 @@ public class PhotoSelectionActivity extends ActionBarActivity implements
                 mCollection.add(captured);
                 mMediaStoreCompat.cleanUp(mCapturePhotoUriHolder);
             }
+            supportInvalidateOptionsMenu();
         } else if (requestCode == REQUEST_CODE_PREVIEW && resultCode == Activity.RESULT_OK) {
             boolean checked = data.getBooleanExtra(ImagePreviewActivity.EXTRA_RESULT_CHECKED, false);
             Item item = data.getParcelableExtra(ImagePreviewActivity.EXTRA_RESULT_ITEM);
@@ -162,6 +163,11 @@ public class PhotoSelectionActivity extends ActionBarActivity implements
         PhotoSelectionViewHelper.setPhotoGridFragment(this, mDrawer, album);
     }
 
+    @Override
+    public void onClickSelectedView() {
+        PhotoSelectionViewHelper.setSelectedGridFragment(this);
+    }
+
     public SelectedUriCollection getCollection() {
         return mCollection;
     }
@@ -173,10 +179,7 @@ public class PhotoSelectionActivity extends ActionBarActivity implements
     }
 
     public boolean isDrawerOpen() {
-        if (mDrawer == null) {
-            return false;
-        }
-        return mDrawer.isDrawerOpen(GravityCompat.START);
+        return mDrawer != null && mDrawer.isDrawerOpen(GravityCompat.START);
     }
 
     @Override

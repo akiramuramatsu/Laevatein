@@ -17,16 +17,25 @@ package com.laevatein.internal.utils;
 
 import com.amalgam.database.CursorUtils;
 import com.amalgam.io.CloseableUtils;
+import com.laevatein.MimeType;
+import com.laevatein.internal.entity.SelectionSpec;
+import com.laevatein.internal.entity.UncapableCause;
 
 import android.content.ContentResolver;
+import android.content.Context;
 import android.database.Cursor;
 import android.graphics.BitmapFactory;
+import android.graphics.Point;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.provider.MediaStore;
 import android.util.Log;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
+
+import jp.mixi.compatibility.android.media.ExifInterfaceCompat;
 
 /**
  * @author KeithYokoma
@@ -36,6 +45,7 @@ import java.io.InputStream;
  */
 public final class PhotoMetadataUtils {
     public static final String TAG = PhotoMetadataUtils.class.getSimpleName();
+    private static final int MAX_WIDTH = 1600;
     private static final String SCHEME_CONTENT = "content";
 
     private PhotoMetadataUtils() {
@@ -43,18 +53,37 @@ public final class PhotoMetadataUtils {
     }
 
     public static int getPixelsCount(ContentResolver resolver, Uri uri) {
-        InputStream in = null;
+        Point size = getBitmapBound(resolver, uri);
+        return size.x * size.y;
+    }
+
+    public static Point getBitmapSize(ContentResolver resolver, Uri uri) {
+        Point imageSize = getBitmapBound(resolver, uri);
+        int w = imageSize.x;
+        int h = imageSize.y;
+        if (PhotoMetadataUtils.shouldRotate(resolver, uri)) {
+            w = imageSize.y;
+            h = imageSize.x;
+        }
+        int width = w > MAX_WIDTH ? MAX_WIDTH : w;
+        int height = (int) Math.floor(h * width / width);
+        return new Point(width, height);
+    }
+
+    public static Point getBitmapBound(ContentResolver resolver, Uri uri) {
+        InputStream is = null;
         try {
-            BitmapFactory.Options op = new BitmapFactory.Options();
-            op.inJustDecodeBounds = true;
-            in = resolver.openInputStream(uri);
-            BitmapFactory.decodeStream(in, null, op);
-            return op.outHeight * op.outWidth;
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            is = resolver.openInputStream(uri);
+            BitmapFactory.decodeStream(is, null, options);
+            int width = options.outWidth;
+            int height = options.outHeight;
+            return new Point(width, height);
         } catch (FileNotFoundException e) {
-            Log.e(TAG, "file not found for the uri: " + uri.toString(), e);
-            return -1;
+            return new Point(0, 0);
         } finally {
-            CloseableUtils.close(in);
+            CloseableUtils.close(is);
         }
     }
 
@@ -76,5 +105,63 @@ public final class PhotoMetadataUtils {
             }
         }
         return uri.getPath();
+    }
+
+    public static UncapableCause isAcceptable(Context context, SelectionSpec spec, Uri uri) {
+        if (!isSelectableType(context, spec, uri)) {
+            return UncapableCause.FILE_TYPE;
+        }
+        if (!hasUnderAtMostQuality(context, spec, uri)) {
+            return UncapableCause.OVER_COUNT;
+        }
+        if (!hasOverAtLeastQuality(context, spec, uri)) {
+            return UncapableCause.UNDER_QUALITY;
+        }
+        return null;
+    }
+
+    public static boolean hasOverAtLeastQuality(Context context, SelectionSpec spec, Uri uri) {
+        if (context == null) {
+            return false;
+        }
+
+        int pixels = PhotoMetadataUtils.getPixelsCount(context.getContentResolver(), uri);
+        return spec.getMinPixels() <= pixels;
+    }
+
+    public static boolean hasUnderAtMostQuality(Context context, SelectionSpec spec, Uri uri) {
+        if (context == null) {
+            return false;
+        }
+
+        int pixels = PhotoMetadataUtils.getPixelsCount(context.getContentResolver(), uri);
+        return pixels <= spec.getMaxPixels();
+    }
+
+    public static boolean isSelectableType(Context context, SelectionSpec spec, Uri uri) {
+        if (context == null) {
+            return false;
+        }
+
+        ContentResolver resolver = context.getContentResolver();
+        for (MimeType type : spec.getMimeTypeSet()) {
+            if (type.checkType(resolver, uri)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean shouldRotate(ContentResolver resolver, Uri uri) {
+        ExifInterface exif;
+        try {
+            exif = ExifInterfaceCompat.newInstance(getPath(resolver, uri));
+        } catch (IOException e) {
+            Log.e(TAG, "could not read exif info of the image: " + uri);
+            return false;
+        }
+        int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, -1);
+        return orientation == ExifInterface.ORIENTATION_ROTATE_90
+                || orientation == ExifInterface.ORIENTATION_ROTATE_270;
     }
 }

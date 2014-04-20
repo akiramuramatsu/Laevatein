@@ -15,18 +15,19 @@
  */
 package com.laevatein.internal.ui.helper;
 
-import com.amalgam.app.SupportSimpleAlertDialogFragment;
 import com.laevatein.R;
-import com.laevatein.internal.entity.ActionViewResources;
+import com.laevatein.internal.entity.ErrorViewResources;
+import com.laevatein.internal.entity.ErrorViewSpec;
 import com.laevatein.internal.entity.Item;
 import com.laevatein.internal.entity.ItemViewResources;
 import com.laevatein.internal.entity.UncapableCause;
+import com.laevatein.internal.entity.ViewResourceSpec;
 import com.laevatein.internal.model.SelectedUriCollection;
 import com.laevatein.internal.ui.ImagePreviewActivity;
 import com.laevatein.internal.ui.PhotoSelectionActivity;
 import com.laevatein.internal.ui.adapter.AlbumPhotoAdapter;
+import com.laevatein.internal.utils.ErrorViewUtils;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
@@ -85,11 +86,15 @@ public final class PhotoGridViewHelper {
     }
 
     public static void callPreview(Context context, Item item, boolean checked) {
-        Activity activity = (Activity) context;
-        ActionViewResources resources = activity.getIntent().getParcelableExtra(PhotoSelectionActivity.EXTRA_ACTION_VIEW_RES);
+        PhotoSelectionActivity activity = (PhotoSelectionActivity) context;
+        ViewResourceSpec resources = activity.getIntent().getParcelableExtra(PhotoSelectionActivity.EXTRA_VIEW_SPEC);
         Intent intent = new Intent(context, ImagePreviewActivity.class);
         intent.putExtra(ImagePreviewActivity.EXTRA_ITEM, item);
-        intent.putExtra(ImagePreviewActivity.EXTRA_CHECK_VIEW_RES, resources);
+        intent.putExtra(ImagePreviewActivity.EXTRA_ERROR_SPEC, activity.getIntent().getParcelableExtra(PhotoSelectionActivity.EXTRA_ERROR_SPEC));
+        intent.putExtra(ImagePreviewActivity.EXTRA_SELECTION_SPEC, activity.getIntent().getParcelableExtra(PhotoSelectionActivity.EXTRA_SELECTION_SPEC));
+        intent.putExtra(ImagePreviewActivity.EXTRA_VIEW_SPEC, activity.getIntent().getParcelableExtra(PhotoSelectionActivity.EXTRA_VIEW_SPEC));
+        intent.putExtra(ImagePreviewActivity.EXTRA_CHECK_VIEW_RES, resources.getActionViewResources());
+        intent.putExtra(ImagePreviewActivity.EXTRA_CURRENT_COUNT, activity.getCollection().count());
         intent.putExtra(ImagePreviewActivity.EXTRA_DEFAULT_CHECKED, checked);
         activity.startActivityForResult(intent, PhotoSelectionActivity.REQUEST_CODE_PREVIEW);
     }
@@ -117,14 +122,22 @@ public final class PhotoGridViewHelper {
 
     public static void addSelection(Context context, SelectedUriCollection collection, Uri uri, CheckBox checkBox) {
         UncapableCause cause = collection.isAcceptable(uri);
+        FragmentActivity activity = (FragmentActivity) context;
+        ErrorViewSpec spec = activity.getIntent().getParcelableExtra(PhotoSelectionActivity.EXTRA_ERROR_SPEC);
+
         if (cause == null) {
+            ErrorViewResources countSpec = spec.getCountErrorSpec();
             collection.add(uri);
+            if (collection.isCountOver() && !countSpec.isNoView()) {
+                ErrorViewUtils.showErrorView(activity, countSpec);
+                collection.remove(uri);
+                checkBox.setChecked(false);
+                return;
+            }
             checkBox.setChecked(true);
         } else {
             checkBox.setChecked(false);
-            FragmentActivity activity = (FragmentActivity) context;
-            SupportSimpleAlertDialogFragment.newInstance(cause.getErrorMessageRes())
-                    .show(activity.getSupportFragmentManager(), SupportSimpleAlertDialogFragment.TAG);
+            ErrorViewUtils.showErrorView(activity, cause.getErrorResources(spec));
         }
     }
 

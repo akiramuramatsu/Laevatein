@@ -17,8 +17,12 @@ package com.laevatein;
 
 import com.laevatein.internal.entity.ActionViewResources;
 import com.laevatein.internal.entity.AlbumViewResources;
+import com.laevatein.internal.entity.CountViewResources;
+import com.laevatein.internal.entity.ErrorViewResources;
+import com.laevatein.internal.entity.ErrorViewSpec;
 import com.laevatein.internal.entity.ItemViewResources;
 import com.laevatein.internal.entity.SelectionSpec;
+import com.laevatein.internal.entity.ViewResourceSpec;
 import com.laevatein.internal.ui.PhotoSelectionActivity;
 
 import android.app.Activity;
@@ -45,7 +49,14 @@ public final class SelectionSpecBuilder {
     private ItemViewResources mItemViewResources;
     private AlbumViewResources mAlbumViewResources;
     private ActionViewResources mActionViewResources;
+    private CountViewResources mCountViewResources;
+    private ErrorViewResources mCountErrorSpec;
+    private ErrorViewResources mUnderQualityErrorSpec;
+    private ErrorViewResources mOverQualityErrorSpec;
+    private ErrorViewResources mTypeErrorSpec;
     private boolean mEnableCapture;
+    private boolean mEnableSelectedView;
+    private int mActivityOrientation;
     private List<Uri> mResumeList;
 
     /**
@@ -58,6 +69,7 @@ public final class SelectionSpecBuilder {
         mMimeType = mimeType;
         mSelectionSpec = new SelectionSpec();
         mResumeList = new ArrayList<Uri>();
+        mActivityOrientation = -1;
     }
 
     /**
@@ -85,6 +97,17 @@ public final class SelectionSpecBuilder {
     }
 
     /**
+     * Sets the binding appearance resources of the count view.
+     * @param textColorRes a text color resource for the count label.
+     * @param backgroundColorRes a background resource for the count label.
+     * @return the specification builder context.
+     */
+    public SelectionSpecBuilder bindCountViewWith(int textColorRes, int backgroundColorRes) {
+        mCountViewResources = new CountViewResources(textColorRes, backgroundColorRes);
+        return this;
+    }
+
+    /**
      * Sets the layout resources for use as action view on the preview activity.
      * @param layoutId a layout resource id.
      * @param checkBoxId an id for the check box.
@@ -104,6 +127,61 @@ public final class SelectionSpecBuilder {
     public SelectionSpecBuilder count(int min, int max) {
         mSelectionSpec.setMinSelectable(min);
         mSelectionSpec.setMaxSelectable(max);
+        return this;
+    }
+
+    /**
+     * Sets the error view specification for the error of count over.
+     * @param type error view type.
+     * @param errorMessageId an error message resource id.
+     * @return the specification builder context.
+     */
+    public SelectionSpecBuilder countOver(ErrorViewResources.ViewType type, int errorMessageId) {
+        mCountErrorSpec = type.createSpec(errorMessageId);
+        return this;
+    }
+
+    /**
+     * Sets the flag to determine whether the list of which image has been selected should be shown or not.
+     * The flag is set as false by default.
+     * @param enableSelectedView the flag of visibility.
+     * @return the specification builder context.
+     */
+    public SelectionSpecBuilder enableSelectedView(boolean enableSelectedView) {
+        mEnableSelectedView = enableSelectedView;
+        return this;
+    }
+
+    /**
+     * Sets the error view specification for the error of quality un-satisfaction.
+     * @param type error view type.
+     * @param errorMessageId an error message resource id.
+     * @return the specification builder context.
+     */
+    public SelectionSpecBuilder underQuality(ErrorViewResources.ViewType type, int errorMessageId) {
+        mUnderQualityErrorSpec = type.createSpec(errorMessageId);
+        return this;
+    }
+
+    /**
+     * Sets the error view specification for the error of quality un-satisfaction..
+     * @param type error view type.
+     * @param errorMessageId an error message resource id.
+     * @return the specification builder context.
+     */
+    public SelectionSpecBuilder overQuality(ErrorViewResources.ViewType type, int errorMessageId) {
+        mOverQualityErrorSpec = type.createSpec(errorMessageId);
+        return this;
+    }
+
+    /**
+     * Sets the error view specification for the error of type validation.
+     * @param type error view type.
+     * @param errorMessageId an error message resource id.
+     * @return the specification builder context.
+     */
+    public SelectionSpecBuilder invalidType(ErrorViewResources.ViewType type, int errorMessageId) {
+        mTypeErrorSpec = type.createSpec(errorMessageId);
         return this;
     }
 
@@ -143,6 +221,11 @@ public final class SelectionSpecBuilder {
         return this;
     }
 
+    public SelectionSpecBuilder restrictOrientation(int activityOrientation) {
+        mActivityOrientation = activityOrientation;
+        return this;
+    }
+
     /**
      * Start to select photo.
      * @param requestCode identity of the requester activity.
@@ -161,16 +244,25 @@ public final class SelectionSpecBuilder {
         if (mActionViewResources == null) {
             mActionViewResources = ActionViewResources.getDefault();
         }
+        if (mCountViewResources == null) {
+            mCountViewResources = CountViewResources.getDefault();
+        }
         mSelectionSpec.setMimeTypeSet(mMimeType);
 
+        // XXX need refactoring using builder pattern
+        ViewResourceSpec viewSpec = new ViewResourceSpec(mActionViewResources, mAlbumViewResources, mCountViewResources, mItemViewResources, mEnableCapture, mEnableSelectedView, mActivityOrientation);
+        ErrorViewSpec errorSpec = new ErrorViewSpec.Builder()
+                .setCountSpec(mCountErrorSpec)
+                .setOverQualitySpec(mOverQualityErrorSpec)
+                .setUnderQualitySpec(mUnderQualityErrorSpec)
+                .setTypeSpec(mTypeErrorSpec)
+                .create();
+
         Intent intent = new Intent(activity, PhotoSelectionActivity.class);
-        intent.putExtra(PhotoSelectionActivity.EXTRA_DIR_VIEW_RES, mAlbumViewResources);
-        intent.putExtra(PhotoSelectionActivity.EXTRA_ITEM_VIEW_RES, mItemViewResources);
-        intent.putExtra(PhotoSelectionActivity.EXTRA_ACTION_VIEW_RES, mActionViewResources);
+        intent.putExtra(PhotoSelectionActivity.EXTRA_VIEW_SPEC, viewSpec);
+        intent.putExtra(PhotoSelectionActivity.EXTRA_ERROR_SPEC, errorSpec);
         intent.putExtra(PhotoSelectionActivity.EXTRA_SELECTION_SPEC, mSelectionSpec);
-        intent.putParcelableArrayListExtra(PhotoSelectionActivity.EXTRA_RESUME_LIST,
-                (ArrayList<? extends android.os.Parcelable>) mResumeList);
-        intent.putExtra(PhotoSelectionActivity.EXTRA_ENABLE_CAPTURE, mEnableCapture);
+        intent.putParcelableArrayListExtra(PhotoSelectionActivity.EXTRA_RESUME_LIST, (ArrayList<? extends android.os.Parcelable>) mResumeList);
         activity.startActivityForResult(intent, requestCode);
     }
 }
